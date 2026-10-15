@@ -9,6 +9,7 @@ from config.constants import ENCOURAGEMENTS
 import database as db
 from exercise_catalog_ui import ExerciseDetailPopup
 from utils.instrument import MechanicalButton
+from utils import fx
 
 
 def _hex(c):
@@ -117,6 +118,7 @@ class WarmupWidget(BoxLayout):
             reflection.pos = (card.x + dp(5), card.top - dp(5))
             reflection.size = (max(0, card.width - dp(10)), dp(1))
         card.bind(pos=redraw, size=redraw)
+        fx.surface(card, 'glass', theme.VFD_ORANGE, cut=5)
         card.bind(minimum_height=card.setter("height"))
 
         name = p["exercise_name"]

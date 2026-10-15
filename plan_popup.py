@@ -9,6 +9,7 @@ from kivy.clock import Clock
 from kivy.metrics import dp
 from kivy.graphics import Color, Rectangle, Line
 import theme
+from utils import fx
 import database as db
 from panels.strength import STRENGTH_PRESETS
 from panels.cardio import CARDIO_PRESETS
@@ -129,6 +130,7 @@ class PlanPopup(FloatLayout):
                                       (card.x, card.y, s[0], s[1])),
         )
         self.add_widget(card)
+        fx.surface(card, 'panel', theme.VFD_ORANGE, cut=14)
 
         hdr = BoxLayout(size_hint_y=None, height=dp(36))
         hdr.add_widget(Label(text="[b]PROGRAM LOAD / 01[/b]  部署今日任务",

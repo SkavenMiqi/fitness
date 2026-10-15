@@ -836,14 +836,28 @@ class AIChatPanel(BoxLayout):
         self._rebuild_messages()
 
     def _build_ui(self):
+        from utils import fx
         root = BoxLayout(orientation="vertical")
         with root.canvas.before:
             Color(*theme.CHASSIS)
             self._root_bg = Rectangle(pos=root.pos, size=root.size)
         root.bind(pos=lambda _, p: setattr(self._root_bg, "pos", p),
                   size=lambda _, s: setattr(self._root_bg, "size", s))
+        fx.chassis(root)
         root.add_widget(self._build_topbar())
         root.add_widget(self._build_calorie_bar())
+
+        shortcuts = BoxLayout(size_hint_y=None, height=dp(40),
+                              spacing=dp(6), padding=[dp(12), dp(4)])
+        for caption, prompt in (
+                ('今日分析', '请分析我今天的训练和热量收支，给出建议。'),
+                ('训练建议', '请根据我的近期训练记录，给出下一次训练建议。'),
+                ('饮食记录', '我想记录一餐饮食，请引导我提供食物和份量。')):
+            button = Button(text=caption, font_size=dp(12), background_normal='',
+                            background_color=theme.PANEL_RAISED, color=theme.VFD_BLUE)
+            button.bind(on_release=lambda _, text=prompt: self._fill_prompt(text))
+            shortcuts.add_widget(button)
+        root.add_widget(shortcuts)
 
         self._msg_box = BoxLayout(orientation="vertical", size_hint_y=None,
                                   spacing=dp(8), padding=[dp(12), dp(8)])
@@ -862,8 +876,9 @@ class AIChatPanel(BoxLayout):
         self.add_widget(root)
 
     def _build_topbar(self):
+        from utils import fx
         bar = BoxLayout(orientation="horizontal", size_hint_y=None,
-                        height=dp(44), spacing=dp(8), padding=[dp(12), dp(4)])
+                        height=dp(54), spacing=dp(8), padding=[dp(12), dp(6)])
         with bar.canvas.before:
             Color(*theme.PANEL_RAISED)
             top_bg = Rectangle(pos=bar.pos, size=bar.size)
@@ -880,6 +895,8 @@ class AIChatPanel(BoxLayout):
                                   font_size=dp(11), halign="left", valign="middle",
                                   size_hint_x=1)
         self._status_lbl.bind(size=self._status_lbl.setter("text_size"))
+        self._status_lbl.shorten = True
+        self._status_lbl.shorten_from = 'right'
         bar.add_widget(self._status_lbl)
         log_btn = Button(text="[font=Symbols]\u2630[/font]", markup=True,
                         size_hint_x=None, width=dp(40),
@@ -893,6 +910,7 @@ class AIChatPanel(BoxLayout):
                       color=theme.VFD_CYAN, font_size=dp(18))
         gear.bind(on_release=lambda _: self._open_settings())
         bar.add_widget(gear)
+        fx.surface(bar, 'panel', theme.VFD_BLUE, cut=5)
         return bar
 
     def _open_log_popup(self):
@@ -904,6 +922,7 @@ class AIChatPanel(BoxLayout):
             _push_err("日志弹窗", f"{e}\n{traceback.format_exc()}")
 
     def _build_calorie_bar(self):
+        from utils import fx
         bar = BoxLayout(orientation="horizontal", size_hint_y=None,
                         height=dp(36), spacing=dp(6), padding=[dp(12), dp(2)])
         with bar.canvas.before:
@@ -924,6 +943,7 @@ class AIChatPanel(BoxLayout):
         add_meal.bind(on_release=lambda _: self._open_meal_picker())
         bar.add_widget(add_meal)
         self._refresh_calorie_bar()
+        fx.surface(bar, 'glass', theme.VFD_CYAN, cut=4)
         return bar
 
     def _refresh_calorie_bar(self, *_):
@@ -964,8 +984,9 @@ class AIChatPanel(BoxLayout):
         _DeficitGoalPopup(current=cur, on_saved=self._refresh_calorie_bar).open()
 
     def _build_input_bar(self):
+        from utils import fx
         bar = BoxLayout(orientation="horizontal", size_hint_y=None,
-                        height=dp(54), spacing=dp(8), padding=[dp(12), dp(6)])
+                        height=dp(60), spacing=dp(6), padding=[dp(10), dp(8)])
         with bar.canvas.before:
             Color(*theme.PANEL)
             self._bbg = Rectangle(pos=bar.pos, size=bar.size)
@@ -977,14 +998,15 @@ class AIChatPanel(BoxLayout):
             size=lambda _, s: (setattr(self._bbg, "size", s),
                                setattr(self._bline, "size", (s[0], dp(1)))),
         )
+        fx.surface(bar, 'panel', theme.VFD_BLUE, cut=4)
         img_btn = Button(text="[font=Symbols]\u25ce[/font]", markup=True,
-                         size_hint_x=None, width=dp(48),
+                         size_hint_x=None, width=dp(36),
                           background_normal="", background_color=theme.METAL_DARK,
                           color=theme.VFD_ORANGE, font_size=dp(16))
         img_btn.bind(on_release=lambda _: self._open_image_picker())
         bar.add_widget(img_btn)
         voice_btn = Button(text="[font=Symbols]\u266a[/font]", markup=True,
-                           size_hint_x=None, width=dp(48),
+                           size_hint_x=None, width=dp(36),
                             background_normal="", background_color=theme.METAL_DARK,
                             color=theme.VFD_CYAN, font_size=dp(16))
         voice_btn.bind(on_press=self._voice_press, on_release=self._voice_release)
@@ -995,15 +1017,21 @@ class AIChatPanel(BoxLayout):
                                 background_normal="",
                                  background_color=theme.DISPLAY_GLASS,
                                  cursor_color=theme.VFD_CYAN, padding=[dp(10), dp(6)],
-                                 hint_text="MESSAGE INPUT / 输入消息...", hint_text_color=theme.TEXT_MUTED)
+                                 hint_text="聊训练、饮食、身体数据…", hint_text_color=theme.TEXT_MUTED)
         self._input.bind(on_text_validate=self._on_send)
         bar.add_widget(self._input)
         send = Button(text="发送", size_hint_x=None, width=dp(64),
                        background_normal="", background_color=theme.VFD_BLUE,
                       color=(0.05, 0.05, 0.08, 1), font_size=dp(14))
         send.bind(on_release=lambda _: self._on_send())
+        self._send_button = send
         bar.add_widget(send)
         return bar
+
+    def _fill_prompt(self, text):
+        if not self._busy:
+            self._input.text = text
+            self._input.focus = True
 
     def _open_image_picker(self):
         if _ANDROID_VOICE:
@@ -1606,8 +1634,8 @@ class AIChatPanel(BoxLayout):
             # 主线程同步初始化 httpx（Android 上可能卡死）
             self._messages = [{"role": "system", "content": self._cfg.system_prompt}]
             self._status_dot.color = theme.LED_GREEN
-            self._status_lbl.text = "DATA LINK / 已连接  " + self._cfg.model
-            self._render([("info", "已连接 " + self._cfg.model + "，可开始对话。")])
+            self._status_lbl.text = "AI 助手 · 已配置\n" + self._cfg.model
+            self._render([("info", "你好，我是你的健身助手。\n可分析训练、查询历史、记录饮食与调整计划。\n\n选择上方快捷问题，或直接输入消息。")])
         else:
             self._messages = []
             self._status_dot.color = theme.TEXT_MUTED
@@ -1621,7 +1649,7 @@ class AIChatPanel(BoxLayout):
         image = self._pending_image
         if not text and not image:
             return
-        if self._client is None:
+        if not self._cfg.is_configured:
             self._render_append(("warn", "请先在设置里配置 API Key。"))
             return
         self._input.text = ""
@@ -1669,9 +1697,13 @@ class AIChatPanel(BoxLayout):
             Clock.schedule_once(lambda dt: self._on_reply(ok, msg), 0)
 
         threading.Thread(target=worker, daemon=True).start()
+        self._send_button.disabled = True
+        self._send_button.text = '思考中'
 
     def _on_reply(self, ok, payload):
         self._busy = False
+        self._send_button.disabled = False
+        self._send_button.text = '发送'
         self._pop_typing()
         self._refresh_calorie_bar()
         if getattr(self, "_plan_changed", False):
@@ -1716,7 +1748,7 @@ class _Bubble(BoxLayout):
     def __init__(self, kind, text, image=None, **kwargs):
         align = "left"
         if kind == "user":
-            bg, fg, align = theme.VFD_BLUE, theme.CHASSIS, "right"
+            bg, fg, align = (0.025, 0.075, 0.10, 1), theme.TEXT_PRIMARY, "right"
         elif kind == "ai":
             bg, fg = theme.DISPLAY_GLASS, theme.TEXT_PRIMARY
         elif kind == "typing":
@@ -1730,7 +1762,7 @@ class _Bubble(BoxLayout):
         self._kind = kind
         self.bind(minimum_height=self.setter("height"))
         with self.canvas.before:
-            Color(*bg)
+            self._bubble_color = Color(*bg)
             self._r = Rectangle(pos=self.pos, size=self.size)
             Color(*(theme.VFD_BLUE if kind == "user" else theme.BORDER_DIM))
             self._edge = Rectangle(pos=self.pos, size=(dp(2), self.height))
@@ -1738,13 +1770,17 @@ class _Bubble(BoxLayout):
                   size=lambda _, s: setattr(self._r, "size", s))
         self.bind(pos=lambda _, p: setattr(self._edge, "pos", p),
                   size=lambda _, s: setattr(self._edge, "size", (dp(2), s[1])))
+        from utils import fx
+        fx.surface(self, 'glass', theme.VFD_BLUE if kind == 'user' else
+                   theme.LED_RED if kind == 'warn' else theme.VFD_CYAN, cut=8)
         source = {"user": "LOCAL TX", "ai": "AI DATA RX", "typing": "LINK ACTIVE",
                   "warn": "SYSTEM ALERT"}.get(kind, "SYSTEM STATUS")
-        source_color = (theme.CHASSIS if kind == "user" else
+        source_color = (theme.VFD_BLUE if kind == "user" else
                         theme.LED_RED if kind == "warn" else theme.VFD_CYAN)
-        self.add_widget(Label(text=source, color=source_color,
+        source_label = Label(text=source, color=source_color,
                               font_size=dp(9), size_hint_y=None, height=dp(12),
-                              halign="left", valign="middle"))
+                              halign="left", valign="middle")
+        self.add_widget(source_label)
         if image:
             img = Image(source=image, size_hint_y=None, height=dp(150),
                        allow_stretch=True, keep_ratio=True)
@@ -1774,3 +1810,13 @@ class _Bubble(BoxLayout):
         inp.bind(width=lambda i, w: _resize_inp(i))
         Clock.schedule_once(lambda dt: _resize_inp(inp))
         self.add_widget(inp)
+        from utils.appearance import state as appearance
+
+        def update_theme(*_):
+            if kind == 'user':
+                self._bubble_color.rgba = bg if appearance.enhanced else theme.VFD_BLUE
+                inp.foreground_color = theme.TEXT_PRIMARY if appearance.enhanced else theme.CHASSIS
+                source_label.color = theme.VFD_BLUE if appearance.enhanced else theme.CHASSIS
+
+        appearance.bind(enhanced=update_theme)
+        update_theme()

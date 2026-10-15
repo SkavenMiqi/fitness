@@ -10,6 +10,7 @@ from kivy.metrics import dp
 
 from config import theme
 import sounds
+from utils import fx
 
 
 class FormPanel(BoxLayout):
@@ -24,6 +25,7 @@ class FormPanel(BoxLayout):
             Color(*theme.CHASSIS)
             self._chassis = Rectangle(pos=self.pos, size=self.size)
         self.bind(pos=self._sync_chassis, size=self._sync_chassis)
+        fx.chassis(self)
 
         self.form_scroll = ScrollView(do_scroll_x=False)
         self.form_area = BoxLayout(orientation="vertical", size_hint_y=None, spacing=dp(8))
@@ -129,7 +131,7 @@ class FormPanel(BoxLayout):
 
     @staticmethod
     def _frame_input(inp):
-        with inp.canvas.before:
+        with inp.canvas.after:
             Color(*theme.BORDER)
             inp._input_border = Line(rectangle=(0, 0, 0, 0), width=dp(1))
             Color(*theme.GLASS_HIGHLIGHT)
@@ -231,6 +233,7 @@ class FormPanel(BoxLayout):
         row._bg_rect = bg
         row._border_line = border
         row.bind(pos=self._redraw_row, size=self._redraw_row)
+        fx.surface(row, 'panel', theme.VFD_CYAN, cut=3)
         lbl = Label(text=text, font_size=dp(theme.FONT_LABEL), color=theme.TEXT_SECONDARY,
                     size_hint_x=1, halign="left", valign="middle")
         lbl.bind(size=lbl.setter("text_size"))

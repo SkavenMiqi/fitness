@@ -11,6 +11,8 @@ from kivy.uix.textinput import TextInput
 import database as db
 from config import theme
 import sounds
+from utils import fx
+from utils.appearance import state as appearance
 
 _FIELD_COLOR = (0.30, 1.0, 0.55, 1)  # 亮绿，填入的字
 
@@ -31,6 +33,7 @@ class BodyPanel(BoxLayout):
             Color(*theme.CHASSIS)
             self._chassis = Rectangle(pos=self.pos, size=self.size)
         self.bind(pos=self._sync_chassis, size=self._sync_chassis)
+        fx.chassis(self)
 
         # 内容容器：固定高度内容自然堆叠，下面用弹性占位区把表单顶到顶部
         self._content = BoxLayout(orientation="vertical", size_hint_y=None,
@@ -53,11 +56,20 @@ class BodyPanel(BoxLayout):
                               setattr(self._ph_border, "rectangle", (*w.pos, w.width, w.height))),
             size=lambda w, _: (setattr(self._ph_bg, "size", w.size),
                                setattr(self._ph_border, "rectangle", (*w.pos, w.width, w.height))))
-        ph_label = Label(text="RESERVED / 预留功能区",
+        fx.surface(self._placeholder, 'glass', theme.VFD_CYAN, cut=12)
+        ph_label = Label(text="[color=00ffcc]BIOMETRIC / 身体档案[/color]\n\n"
+                              "记录当下，见证每一次改变\n\n"
+                              "[color=667577]FITNESS CONTROL SYSTEM[/color]",
+                         markup=True,
                          color=theme.TEXT_MUTED, font_size=dp(theme.FONT_CAPTION),
                          halign="center", valign="middle")
         ph_label.bind(size=ph_label.setter("text_size"))
         self._placeholder.add_widget(ph_label)
+        enhanced_text = ph_label.text
+        def apply_theme(*_):
+            ph_label.text = enhanced_text if appearance.enhanced else 'RESERVED / 预留功能区'
+        appearance.bind(enhanced=apply_theme)
+        apply_theme()
         self.add_widget(self._placeholder)
 
     def _sync_chassis(self, *_):

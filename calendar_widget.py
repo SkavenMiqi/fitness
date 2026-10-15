@@ -16,6 +16,8 @@ from kivy.utils import escape_markup
 import theme
 import database as db
 import sounds
+from utils import fx
+from utils.appearance import state as appearance
 
 class RoundedButton(Button):
     def __init__(self, text="", bg_color=(0.1,0.1,0.1,1), color=(1,1,1,1),
@@ -30,11 +32,14 @@ class RoundedButton(Button):
         self._bg_color = bg_color
         self.bind(pos=self._draw, size=self._draw)
         self.bind(on_press=self._on_down, on_release=self._on_up)
+        appearance.bind(enhanced=self._draw)
     def _draw(self, *args):
         self.canvas.before.clear()
         with self.canvas.before:
-            Color(*self._bg_color)
-            Rectangle(pos=self.pos, size=self.size)
+            Color(*((1, 1, 1, 1) if appearance.enhanced else self._bg_color))
+            Rectangle(pos=self.pos, size=self.size,
+                      texture=fx.key_texture(self._bg_color, pressed=self.state == 'down')
+                      if appearance.enhanced else None)
             Color(*theme.METAL_DARK)
             Line(rectangle=(*self.pos, *self.size), width=dp(0.6))
     def set_color(self, bg_color):

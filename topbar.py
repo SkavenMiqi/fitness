@@ -12,6 +12,7 @@ from kivy.graphics import Color, Rectangle, Line
 from kivy.metrics import dp
 from config import theme
 from utils.instrument import StatusLamp
+from utils import fx
 import database as db
 from llm_config import LLMConfig
 import sounds
@@ -179,6 +180,7 @@ class SystemBus(BoxLayout):
             Color(*theme.GLASS_HIGHLIGHT)
             self._highlight = Rectangle(pos=self.pos, size=(self.width, dp(1)))
         self.bind(pos=self._draw_frame, size=self._draw_frame)
+        fx.surface(self, 'glass', theme.VFD_BLUE, cut=4)
 
         top = BoxLayout(size_hint_y=None, height=dp(10), spacing=dp(4))
         bus_label = Label(text="SYSTEM BUS", color=theme.METAL_LIGHT, font_size=dp(8),
@@ -294,6 +296,7 @@ class ChannelDisplay(BoxLayout):
             Color(*theme.GLASS_HIGHLIGHT)
             self._highlight = Rectangle(pos=self.pos, size=(self.width, dp(1)))
         self.bind(pos=self._draw_frame, size=self._draw_frame)
+        fx.surface(self, 'glass', theme.VFD_ORANGE, cut=4)
 
         english, _, chinese = title_text.partition("\n")
         top = BoxLayout(size_hint_y=None, height=dp(10), spacing=dp(4))
@@ -388,6 +391,7 @@ class TopBar(BoxLayout):
             Color(*theme.HAIRLINE)
             self._line = Rectangle(pos=(self.x, self.y), size=(self.width, dp(1)))
         self.bind(size=self._update_rect, pos=self._update_rect)
+        fx.surface(self, 'panel', theme.VFD_BLUE, cut=0)
         if on_menu:
             burger = HamburgerButton()
             burger.bind(on_release=lambda _: on_menu())

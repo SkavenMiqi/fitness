@@ -9,16 +9,19 @@ from kivy.graphics import Color, Rectangle, Line
 from kivy.core.text import Label as CoreLabel
 from config import theme
 import database as db
+from utils import fx
+from utils.appearance import state as appearance
 
 
 class _ModeKey(Button):
     def __init__(self, text, active=False, width=None, **kwargs):
         sz = (dp(width or 56), dp(30))
-        super().__init__(text=text, size_hint=(None, None), size=sz,
+        super().__init__(text=text, size_hint=(1, None), size=sz,
                          background_normal="", background_color=(0, 0, 0, 0),
                          font_size=dp(theme.FONT_LABEL), bold=active, **kwargs)
         self._active = active
         self.bind(pos=self._draw, size=self._draw)
+        appearance.bind(enhanced=self._draw)
 
     def set_active(self, active):
         self._active = active
@@ -50,6 +53,7 @@ class StatsPanel(BoxLayout):
             Color(*theme.CHASSIS)
             self._chassis = Rectangle(pos=self.pos, size=self.size)
         self.bind(pos=self._sync_chassis, size=self._sync_chassis)
+        fx.chassis(self)
         self._build_ui()
 
     def _sync_chassis(self, *_):
@@ -78,7 +82,7 @@ class StatsPanel(BoxLayout):
                                    cursor_color=theme.VFD_CYAN,
                                   font_size=dp(theme.FONT_BODY), padding=[0, dp(10)])
         self._wt_inp.bind(text=self._on_weight_change)
-        with self._wt_inp.canvas.before:
+        with self._wt_inp.canvas.after:
             Color(*theme.BORDER)
             self._wt_inp._display_border = Line(rectangle=(0, 0, 0, 0), width=dp(1))
             Color(*theme.GLASS_HIGHLIGHT)
@@ -104,6 +108,7 @@ class StatsPanel(BoxLayout):
         imp_btn.bind(on_release=lambda _: self._open_import())
         wt_bar.add_widget(imp_btn)
         self._content.add_widget(wt_bar)
+        fx.surface(wt_bar, 'glass', theme.VFD_CYAN, cut=4)
 
         self._content.add_widget(Label(text="今日汇总", color=theme.VFD_ORANGE,
                                         font_size=dp(theme.FONT_H3), bold=True,
@@ -112,6 +117,7 @@ class StatsPanel(BoxLayout):
         self._table_box = BoxLayout(orientation="vertical", spacing=dp(4), size_hint_y=None)
         self._table_box.bind(minimum_height=self._table_box.setter("height"))
         self._content.add_widget(self._table_box)
+        fx.surface(self._table_box, 'glass', theme.VFD_CYAN, cut=4)
 
         toggle = BoxLayout(size_hint_y=None, height=dp(34), spacing=dp(6))
         self._view_pills = {}
@@ -127,7 +133,6 @@ class StatsPanel(BoxLayout):
             p.bind(on_press=lambda _, m=metric: self._set_metric(m))
             self._metric_pills[metric] = p
             toggle.add_widget(p)
-        toggle.add_widget(BoxLayout())
         self._content.add_widget(toggle)
 
         self._chart_label = Label(text="每日消耗趋势 (大卡)", color=theme.TEXT_MUTED,
@@ -277,6 +282,7 @@ class ChartWidget(BoxLayout):
         self._labels = []
         self._ylabel = "大卡"
         self.bind(pos=self._draw, size=self._draw)
+        appearance.bind(enhanced=self._draw)
 
     def draw(self, values, labels, ylabel):
         self._data = values
@@ -299,6 +305,10 @@ class ChartWidget(BoxLayout):
             Color(*theme.GLASS_HIGHLIGHT)
             Line(points=[self.x + dp(1), self.top - dp(1),
                          self.right - dp(1), self.top - dp(1)], width=dp(1))
+        panel = fx.Plate('glass', accent_color=theme.VFD_CYAN)
+        panel.overlay = True
+        panel.update(self.x, self.y, self.width, self.height)
+        self.canvas.before.add(panel.group)
         margin_left = dp(42)
         margin_bottom = dp(24)
         margin_top = dp(20)
@@ -326,8 +336,9 @@ class ChartWidget(BoxLayout):
                 segment_count = max(1, int(bar_h / (segment_h + segment_gap))) if val > 0 else 0
                 Color(*theme.VFD_CYAN)
                 for segment in range(segment_count):
-                    Rectangle(pos=(bx, by + segment * (segment_h + segment_gap)),
-                              size=(bar_w, segment_h))
+                    fx.draw_segment_glow(self.canvas.before,
+                        bx, by + segment * (segment_h + segment_gap), bar_w, segment_h,
+                        theme.VFD_CYAN, glow=segment == segment_count - 1)
             for i, val in enumerate(self._data):
                 bar_h = (val / max_val) * chart_h if val > 0 else 0
                 bx = ox + margin_left + i * step + step * 0.2

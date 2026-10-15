@@ -4,7 +4,9 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.textinput import TextInput
-from kivy.uix.image import Image
+from kivy.uix.image import AsyncImage
+from collections import OrderedDict
+from time import perf_counter
 from kivy.uix.label import Label
 from kivy.uix.widget import Widget
 from kivy.graphics import Color, Rectangle, Line
@@ -14,6 +16,8 @@ from kivy.clock import Clock
 import database as db
 from config import theme
 import sounds
+from utils import fx
+from utils.appearance import state as appearance
 from exercise_catalog_ui import ExerciseDetailPopup
 
 _BODY_FILTERS = [
@@ -50,20 +54,25 @@ class ArchiveCard(Widget):
         super().__init__(size_hint=(1, None), height=dp(132), **kwargs)
         self._exercise = exercise
         self._pressed = False
-        with self.canvas:
+        with self.canvas.before:
             self._bg_color = Color(*theme.METAL_DARK)
             self._bg = Rectangle(pos=self.pos, size=self.size)
             self._edge_color = Color(*theme.BORDER)
             self._edge = Line(rectangle=(*self.pos, *self.size), width=dp(0.8))
         self.bind(pos=self._draw, size=self._draw)
+        fx.surface(self, 'panel', theme.VFD_CYAN, cut=6)
+        # Keep the interactive orange focus outline above the new surface.
+        with self.canvas.after:
+            self._focus_color = Color(1, 0.333, 0, 0)
+            self._focus_edge = Line(rectangle=(*self.pos, *self.size), width=dp(1))
 
-        box = BoxLayout(orientation="vertical", padding=[dp(4), dp(4)], spacing=dp(2))
+        box = BoxLayout(orientation="vertical", padding=[dp(7), dp(6)], spacing=dp(3))
         self._box = box
         self.add_widget(box)
 
         thumb_path = db.resolve_media_path(exercise.get("thumbnail_path"))
         if thumb_path:
-            img = Image(source=thumb_path, allow_stretch=True, keep_ratio=True)
+            img = AsyncImage(source=thumb_path, allow_stretch=True, keep_ratio=True)
             self._img = img
             box.add_widget(img)
         else:
@@ -82,7 +91,15 @@ class ArchiveCard(Widget):
         tag.bind(size=tag.setter("text_size"))
         box.add_widget(tag)
 
+        def apply_theme(*_):
+            box.padding = [dp(7), dp(6)] if appearance.enhanced else [dp(4), dp(4)]
+            box.spacing = dp(3 if appearance.enhanced else 2)
+        appearance.bind(enhanced=apply_theme)
+        apply_theme()
+
     def _draw(self, *_):
+        self._focus_edge.rectangle = (*self.pos, *self.size)
+        self._focus_color.a = 1 if self._pressed else 0
         self._bg.pos = self.pos
         self._bg.size = self.size
         self._edge.rectangle = (*self.pos, *self.size)
@@ -126,6 +143,11 @@ class ArchivePanel(BoxLayout):
         self._filters = filters or _BODY_FILTERS
         self._active_filter = ""
         self._search_ev = None
+        self._render_signature = None
+        self._build_event = None
+        self._card_cache = OrderedDict()
+        self._pending_rows = []
+        fx.chassis(self)
 
         header = BoxLayout(size_hint_y=None, height=dp(26))
         title_text = title or "EXERCISE ARCHIVE / 动作资料馆"
@@ -203,6 +225,9 @@ class ArchivePanel(BoxLayout):
         self._search_ev = Clock.schedule_once(lambda _dt: self._refresh(), 0.25)
 
     def _refresh(self):
+        if self._search_ev is not None:
+            self._search_ev.cancel()
+            self._search_ev = None
         query = self._search.text.strip()
         common_only = self._active_filter == "common"
         is_category = self._filters is _CATEGORY_FILTERS
@@ -221,11 +246,27 @@ class ArchivePanel(BoxLayout):
             body_part = ""
         rows = db.search_catalog(query=query, body_part=body_part,
                                  limit=500, common_only=common_only,
-                                 item_type=item_type, item_types=item_types)
+                                  item_type=item_type, item_types=item_types)
+        # Include ordering and visible metadata so completed exercises can still
+        # reorder common entries while unchanged visits preserve every widget.
+        signature = (query, self._active_filter, tuple(
+            (ex['id'], ex['name_zh'], ex.get('thumbnail_path'), ex.get('equipment'))
+            for ex in rows))
+        if signature == self._render_signature:
+            return
+        self._render_signature = signature
+        if self._build_event is not None:
+            self._build_event.cancel()
+            self._build_event = None
         self._count.text = f"{len(rows)} ITEMS"
         self._grid.clear_widgets()
-        for ex in rows:
-            self._grid.add_widget(ArchiveCard(ex))
+        self._scroll.scroll_y = 1
+        self._pending_rows = list(rows)
+        self._build_index = 0
+        if rows:
+            self._build_batch(0)
+            if self._build_index < len(rows):
+                self._build_event = Clock.schedule_interval(self._build_batch, 0)
         if not rows:
             if self._active_filter == "common":
                 msg = ("COMMON EMPTY / 暂无常用动作\n"
@@ -236,3 +277,27 @@ class ArchivePanel(BoxLayout):
                           font_size=dp(theme.FONT_BODY), size_hint_y=None,
                           height=dp(160), halign="center", valign="middle")
             self._grid.add_widget(empty)
+
+    def _build_batch(self, _dt):
+        """Bound widget work per frame; cached cards are reused across filters."""
+        started = perf_counter()
+        count = 0
+        while self._build_index < len(self._pending_rows):
+            ex = self._pending_rows[self._build_index]
+            key = (ex['id'], ex['name_zh'], ex.get('thumbnail_path'), ex.get('equipment'))
+            card = self._card_cache.pop(key, None)
+            if card is None:
+                card = ArchiveCard(ex)
+            self._card_cache[key] = card
+            self._grid.add_widget(card)
+            self._build_index += 1
+            count += 1
+            if count >= 6 or perf_counter() - started >= 0.004:
+                break
+        # Bound retained widgets when the packaged catalog grows.
+        while len(self._card_cache) > 500:
+            self._card_cache.popitem(last=False)
+        if self._build_index >= len(self._pending_rows):
+            self._build_event = None
+            return False
+        return True

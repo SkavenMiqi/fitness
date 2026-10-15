@@ -114,7 +114,8 @@ class ExerciseDetailPopup(ModalView):
             return False
         self._frame_index = (self._frame_index + 1) % len(self._frames)
         self._media.source = self._frames[self._frame_index]
-        self._media.reload()
+        # Changing source already loads the frame; reload() evicts its cached
+        # texture and forces disk decoding again on every animation cycle.
         return True
 
     def on_dismiss(self):

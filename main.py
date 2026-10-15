@@ -65,6 +65,8 @@ class FitnessApp(App):
         try:
             import theme
             import database as db
+            from utils.skin import load_skin
+            load_skin()
             from main_layout import MainLayout
             db.init_db()
             root = MainLayout()

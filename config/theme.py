@@ -63,3 +63,23 @@ CARD_PADDING = 12
 CARD_SPACING = 7
 PAGE_MARGIN = 8
 MODULE_HEADER = 18
+
+# ---- V3 light & depth tokens (used by utils/fx.py) ----
+# Chassis gradient: faint cool lift at top, deep at bottom.
+CHASSIS_TOP = (0.040, 0.046, 0.052, 1)
+CHASSIS_BOTTOM = (0.012, 0.013, 0.015, 1)
+GRID_DOT = (0.30, 0.55, 0.60, 0.10)
+# Titanium plate face gradient.
+PLATE_TOP = (0.085, 0.092, 0.100, 1)
+PLATE_BOTTOM = (0.040, 0.044, 0.048, 1)
+PLATE_EDGE = (0.30, 0.33, 0.35, 0.85)
+BEVEL_LIGHT = (0.85, 0.90, 0.92, 0.22)
+BEVEL_DARK = (0.0, 0.0, 0.0, 0.55)
+SHADOW = (0, 0, 0, 0.55)
+# Smoked glass.
+GLASS_TOP = (0.020, 0.040, 0.044, 1)
+GLASS_BOTTOM = (0.006, 0.010, 0.011, 1)
+SCANLINE = (0.55, 0.90, 0.95, 0.035)
+# Chamfer cut size for sci-fi corners (dp).
+CHAMFER = 9
+GLOW_SPREAD = 10

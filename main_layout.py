@@ -23,6 +23,8 @@ from task_card import TaskCard
 from ai_chat import AIChatPanel
 from utils.card import CardHolder
 from utils.instrument import StatusLamp
+from utils import fx
+from utils.appearance import state as appearance
 from utils.platform import get_app_version
 
 
@@ -31,8 +33,11 @@ class PageBar(FloatLayout):
         super().__init__(size_hint=(None, None), size=(dp(44), dp(200)), pos_hint={"x": 0, "y": 0.08}, **kwargs)
         self._names = names; self.sm = sm
         self._touch_start = None; self._dragging = False; self._drag_cur = 0
+        self._touch_uid = None
+        self._wheel_time = 0
         self.bind(pos=self._draw, size=self._draw)
         sm.bind(current=self._on_screen_changed)
+        appearance.bind(enhanced=self._draw)
 
     def _on_screen_changed(self, *_): self._draw()
 
@@ -46,50 +51,82 @@ class PageBar(FloatLayout):
         track_x = self.center_x - track_w / 2; track_y = self.y + margin
         segment = track_h / (n - 1)
         with self.canvas.before:
-            Color(*theme.METAL_DARK)
-            Rectangle(pos=(self.x + dp(7), self.y), size=(self.width - dp(14), self.height))
-            Color(*theme.METAL)
-            Line(rectangle=(self.x + dp(7), self.y, self.width - dp(14), self.height), width=dp(0.8))
-            Color(*theme.METAL_LIGHT)
+            inset = dp(9 if appearance.enhanced else 7)
+            Color(*(theme.DISPLAY_GLASS if appearance.enhanced else theme.METAL_DARK))
+            Rectangle(pos=(self.x + inset, self.y), size=(self.width - 2 * inset, self.height))
+            Color(*(theme.BORDER_DIM if appearance.enhanced else theme.METAL))
+            Line(rectangle=(self.x + inset, self.y, self.width - 2 * inset, self.height), width=dp(0.8))
+            Color(*theme.VFD_BLUE_DIM)
             Rectangle(pos=(track_x, track_y), size=(track_w, track_h))
             for index in range(n):
                 cy = track_y + index * segment
                 active = index == cur
+                half_width = dp(5 if appearance.enhanced else 7)
+                half_height = dp(2 if appearance.enhanced else 3)
+                # Keep every slot explicit: no shared glow helper may alter the
+                # canvas color/texture state used by the following slot.
                 Color(*(theme.VFD_BLUE if active else theme.VFD_BLUE_DIM))
-                Rectangle(pos=(self.center_x - dp(7), cy - dp(3)), size=(dp(14), dp(6)))
-                Color(*(theme.METAL_LIGHT if active else theme.METAL_DARK))
+                Rectangle(pos=(self.center_x - half_width, cy - half_height),
+                          size=(half_width * 2, half_height * 2))
+                Color(*(theme.VFD_BLUE if active else theme.METAL_DARK))
                 Line(points=(self.center_x + dp(9), cy,
                              self.center_x + dp(13), cy), width=dp(1))
 
     def on_touch_down(self, touch):
         if not self.collide_point(*touch.pos): return False
+        if getattr(touch, 'is_mouse_scrolling', False):
+            import time
+            now = time.monotonic()
+            if now - self._wheel_time >= 0.15:
+                current = self._names.index(self.sm.current)
+                delta = 1 if touch.button == 'scrollup' else -1
+                self._select_index(current + delta)
+                self._wheel_time = now
+            return True
+        if self._touch_uid is not None:
+            return False
+        self._touch_uid = touch.uid
         self._touch_start = (touch.x, touch.y); self._dragging = False
         try: self._drag_cur = self._names.index(self.sm.current)
         except ValueError: self._drag_cur = 0
         touch.grab(self)
         return True
 
+    def _select_index(self, index):
+        if not self._names:
+            return
+        index = max(0, min(len(self._names) - 1, index))
+        current = self._names.index(self.sm.current)
+        if index == current:
+            return
+        # Finish an in-flight slide before starting another selection.
+        if self.sm.transition.is_active:
+            self.sm.transition.stop()
+        self.sm.transition.direction = 'up' if index > current else 'down'
+        self.sm.current = self._names[index]
+
     def on_touch_move(self, touch):
-        if touch.grab_current is not self or self._touch_start is None: return False
+        if touch.uid != self._touch_uid or self._touch_start is None: return False
         dy = abs(touch.y - self._touch_start[1])
         if dy > dp(10): self._dragging = True
         if self._dragging:
-            idx = self._pos_to_idx(touch.y)
-            if idx != self._drag_cur:
-                self._drag_cur = idx
-                self.sm.transition.direction = 'up' if touch.y < self._touch_start[1] else 'down'
-                self.sm.current = self._names[idx]
+            spacing = max(dp(20), (self.height - dp(32)) / max(1, len(self._names) - 1))
+            idx = max(0, min(len(self._names) - 1,
+                            self._drag_cur + round((touch.y - self._touch_start[1]) / spacing)))
+            self._select_index(idx)
         return True
 
     def on_touch_up(self, touch):
-        if touch.grab_current is not self: return False
+        if touch.uid != self._touch_uid: return False
         touch.ungrab(self)
+        # A simple press must not jump to an unrelated absolute rail position.
+        self._touch_uid = None
         self._touch_start = None; self._dragging = False
         return True
 
     def _pos_to_idx(self, y):
         n = len(self._names); margin = dp(16)
-        track_h = self.height - margin * 2; segment = track_h / (n - 1)
+        track_h = max(1, self.height - margin * 2); segment = track_h / max(1, n - 1)
         track_y = self.y + margin
         return max(0, min(n - 1, round((y - track_y) / segment)))
 
@@ -97,8 +134,11 @@ class PageBar(FloatLayout):
 class MainLayout(FloatLayout):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self._chassis_surface = fx.chassis(self)
 
     def init_ui(self):
+        from utils.skin import load_skin
+        load_skin()
         self.sm = ScreenManager(transition=SlideTransition(duration=0.18))
         self._screen_order = ["home", "archive", "cardio", "body", "stats", "ai"]
 
@@ -129,7 +169,11 @@ class MainLayout(FloatLayout):
 
     def _on_screen_changed(self, _sm, name):
         # 延迟到切页动画后刷新，避免占用动画帧
-        Clock.schedule_once(lambda dt, n=name: self._refresh_panel_for(n), 0.25)
+        pending = getattr(self, '_panel_refresh_event', None)
+        if pending is not None:
+            pending.cancel()
+        self._panel_refresh_event = Clock.schedule_once(
+            lambda dt, n=name: self._refresh_panel_for(n) if self.sm.current == n else None, 0.25)
 
     def _refresh_panel_for(self, name):
         if name == "archive" and hasattr(self, "_archive_panel"):
@@ -143,7 +187,7 @@ class MainLayout(FloatLayout):
                                   dp(theme.PAGE_MARGIN), dp(theme.PAGE_MARGIN)],
                          spacing=dp(theme.CARD_SPACING))
 
-        status = BoxLayout(size_hint_y=None, height=dp(24), spacing=dp(6),
+        status = BoxLayout(size_hint_y=None, height=dp(30), spacing=dp(8),
                            padding=[dp(7), 0])
         with status.canvas.before:
             Color(*theme.DISPLAY_GLASS)
@@ -151,9 +195,10 @@ class MainLayout(FloatLayout):
             Color(*theme.VFD_BLUE_DIM)
             self._home_status_line = Line(rectangle=(*status.pos, *status.size), width=dp(0.8))
         status.bind(pos=self._redraw_home_status, size=self._redraw_home_status)
+        fx.surface(status, 'glass', theme.VFD_BLUE, cut=4)
         status.add_widget(StatusLamp(color=theme.VFD_BLUE, breathe=True,
                                      pos_hint={"center_y": 0.5}))
-        status_text = Label(text="[color=33ccff]SYSTEM ONLINE[/color]   今日训练控制台",
+        status_text = Label(text="[color=33ccff]ONLINE[/color]   /   今日训练控制台",
                             markup=True, color=theme.TEXT_SECONDARY,
                             font_size=dp(theme.FONT_CAPTION), halign="left", valign="middle")
         status_text.bind(size=status_text.setter("text_size"))
@@ -174,13 +219,13 @@ class MainLayout(FloatLayout):
                          size_hint_y=None, height=dp(28))
         nuke_lbl.bind(size=nuke_lbl.setter("text_size"))
         nuke_box.add_widget(nuke_lbl)
-        nuke_holder = CardHolder(nuke_box, padding=7, bg=theme.PANEL)
+        nuke_holder = CardHolder(nuke_box, padding=7, bg=theme.PANEL, accent=theme.VFD_ORANGE)
         nuke_holder.size_hint_x = 0.32
         top_row.add_widget(nuke_holder)
 
         self._warmup = WarmupWidget(size_hint=(1, 1),
                                     on_complete=self._on_task_completed)
-        warmup_holder = CardHolder(self._warmup, padding=9, bg=theme.PANEL)
+        warmup_holder = CardHolder(self._warmup, padding=9, bg=theme.PANEL, accent=theme.VFD_ORANGE)
         warmup_holder.size_hint_x = 0.68
         top_row.add_widget(warmup_holder)
         root.add_widget(top_row)
@@ -189,8 +234,20 @@ class MainLayout(FloatLayout):
         root.add_widget(self._task_card)
 
         self._heatmap = CalendarHeatmap()
-        heatmap_holder = CardHolder(self._heatmap, padding=6, bg=theme.PANEL)
+        heatmap_holder = CardHolder(self._heatmap, padding=8, style='glass', accent=theme.VFD_CYAN)
         root.add_widget(heatmap_holder)
+
+        def apply_home_theme(*_):
+            status.height = dp(30 if appearance.enhanced else 24)
+            status.spacing = dp(8 if appearance.enhanced else 6)
+            status_text.text = ("[color=33ccff]ONLINE[/color]   /   今日训练控制台"
+                                if appearance.enhanced else
+                                "[color=33ccff]SYSTEM ONLINE[/color]   今日训练控制台")
+            heatmap_holder._pad = dp(8 if appearance.enhanced else 6)
+            heatmap_holder._layout_child()
+
+        appearance.bind(enhanced=apply_home_theme)
+        apply_home_theme()
         return root
 
     def _redraw_home_status(self, widget, *_):
@@ -304,6 +361,7 @@ class BootOverlay(FloatLayout):
             Color(*theme.VFD_CYAN_DIM)
             self._terminal_line = Line(rectangle=(*terminal.pos, *terminal.size), width=dp(1))
         terminal.bind(pos=self._draw_terminal, size=self._draw_terminal)
+        fx.surface(terminal, 'glass', theme.VFD_BLUE, cut=12)
         lines = (
             "[color=33ccff][b]FITNESS CONTROL TERMINAL[/b][/color]\n"
             "[color=666f70]SYSTEM CHECK / 系统自检[/color]\n\n"

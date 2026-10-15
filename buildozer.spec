@@ -6,9 +6,9 @@ package.domain = org.fitness
 
 source.dir = .
 source.include_exts = py,ttf,wav,atlas,png,jpg,gif,db
-source.exclude_patterns = check_pkg.py,ui参考文件/*,tools/*,test_images/*,assets/catalog/gifs/*
+source.exclude_patterns = check_pkg.py,ui参考文件/*,tools/*,test_images/*,assets/catalog/gifs/*,fitness.db
 
-version = 2.2.1
+version = 2.3.0
 
 icon.filename = assets/icons/icon.png
 presplash.filename = assets/icons/icon.png

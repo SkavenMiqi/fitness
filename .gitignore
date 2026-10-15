@@ -22,6 +22,9 @@ _pyc_backup/
 skills-lock.json
 app_*.txt
 app_debug.log
+appearance.json
+appearance.json.tmp
+llm_config.json
 
 # Local build scripts (one-off, not source)
 start_build*.sh

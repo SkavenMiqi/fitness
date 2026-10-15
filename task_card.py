@@ -4,6 +4,8 @@ from kivy.metrics import dp
 from kivy.graphics import Color, Rectangle, Line
 from kivy.utils import escape_markup
 from config import theme
+from utils import fx
+from utils.appearance import state as appearance
 import database as db
 
 
@@ -21,6 +23,7 @@ class TaskCard(BoxLayout):
             Color(*theme.METAL_LIGHT)
             self._top_edge = Rectangle(pos=self.pos, size=(self.width, dp(1)))
         self.bind(pos=self._redraw, size=self._redraw)
+        fx.surface(self, 'panel', theme.VFD_CYAN)
 
         header = BoxLayout(size_hint_y=None, height=dp(30), spacing=dp(6))
         self._title = Label(text="[color=ff5500][size=10sp]MISSION STATUS[/size][/color]\n[b]今日任务[/b]", markup=True,
@@ -50,6 +53,7 @@ class TaskCard(BoxLayout):
                        setattr(widget, "text_size", (size[0], None)))
         self.add_widget(self._sub)
         self.refresh()
+        appearance.bind(enhanced=self._redraw_track)
 
     def _redraw(self, *_):
         self._bg.pos = self.pos
@@ -68,9 +72,11 @@ class TaskCard(BoxLayout):
         lit = round(self._progress_ratio * segments)
         with self._track.canvas.after:
             for index in range(segments):
-                Color(*(theme.VFD_CYAN if index < lit else theme.VFD_CYAN_DIM))
-                Rectangle(pos=(self._track.x + index * (segment_w + gap), self._track.y + dp(1)),
-                          size=(segment_w, max(0, self._track.height - dp(2))))
+                fx.draw_segment_glow(self._track.canvas.after,
+                    self._track.x + index * (segment_w + gap), self._track.y + dp(1),
+                    segment_w, max(0, self._track.height - dp(2)),
+                    theme.VFD_CYAN if index < lit else theme.VFD_CYAN_DIM,
+                    glow=index < lit)
 
     def refresh(self):
         plan = db.get_today_plan()

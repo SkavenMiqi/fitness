@@ -6,6 +6,8 @@ from kivy.properties import BooleanProperty, NumericProperty
 from kivy.metrics import dp
 import math
 from datetime import date
+from utils import fx
+from utils.appearance import state as appearance
 import theme
 import database as db
 import sounds
@@ -27,6 +29,7 @@ class NukeButton(Button):
         self._icon = _ICON_NORMAL
         self.bind(pos=self._draw, size=self._draw, _glow=self._draw)
         self.bind(nuked_today=self._on_nuked_changed)
+        appearance.bind(enhanced=self._draw)
         self.nuked_today = db.is_date_nuked(date.today().isoformat())
         Clock.schedule_once(lambda dt: self._start_glow(), 0.5)
 
@@ -73,9 +76,15 @@ class NukeButton(Button):
             Color(*bg)
             Rectangle(pos=(x, y), size=(w, h))
             # Soft status glow stays inside the rectangular control panel.
-            Color(icon[0], icon[1], icon[2], self._glow * 0.45)
-            glow_r = outer_r * 1.18
-            Ellipse(pos=(cx - glow_r, cy - glow_r), size=(glow_r * 2, glow_r * 2))
+            # Concentric low-opacity rings, not a flat translucent glow disk.
+            if not appearance.enhanced:
+                Color(*icon[:3], self._glow * 0.45)
+                glow_r = outer_r * 1.18
+                Ellipse(pos=(cx - glow_r, cy - glow_r), size=(glow_r * 2, glow_r * 2))
+            for radius_scale, alpha in (((1.15, 0.08), (1.10, 0.12), (1.05, 0.20))
+                                        if appearance.enhanced else ()):
+                Color(*icon[:3], self._glow * alpha)
+                Line(circle=(cx, cy, outer_r * radius_scale), width=dp(3))
 
             # Recessed metal bezel.
             Color(*_METAL_DARK)
@@ -86,8 +95,10 @@ class NukeButton(Button):
             Line(circle=(cx, cy, outer_r * 0.90), width=dp(1))
 
             # Dark button face and active inner ring.
-            Color(*theme.DISPLAY_GLASS)
-            Ellipse(pos=(cx - face_r, cy - face_r), size=(face_r * 2, face_r * 2))
+            Color(1, 1, 1, 1)
+            Ellipse(pos=(cx - face_r, cy - face_r), size=(face_r * 2, face_r * 2),
+                    texture=fx.gradient_texture((0.10, 0.045, 0.025, 1), theme.DISPLAY_GLASS)
+                    if appearance.enhanced else fx.gradient_texture(theme.DISPLAY_GLASS, theme.DISPLAY_GLASS))
             Color(icon[0], icon[1], icon[2], 0.95)
             Line(circle=(cx, cy, face_r), width=dp(2))
 
@@ -131,7 +142,7 @@ class NukeButton(Button):
             Color(*theme.BORDER)
             fastener = dp(2.2)
             inset = dp(8)
-            for fx, fy in ((x + inset, y + inset), (x + w - inset, y + inset),
+            for fastener_x, fy in ((x + inset, y + inset), (x + w - inset, y + inset),
                            (x + inset, y + h - inset), (x + w - inset, y + h - inset)):
-                Ellipse(pos=(fx - fastener, fy - fastener),
+                Ellipse(pos=(fastener_x - fastener, fy - fastener),
                         size=(fastener * 2, fastener * 2))
